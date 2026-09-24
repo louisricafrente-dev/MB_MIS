@@ -184,7 +184,7 @@ useEffect(() => {
               navigate(redirectParam || "/admin/dashboard", { replace: true });
               setIsLoading(false);
             }}
-            className="cursor-pointer w-full bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white py-3 text-lg font-bold rounded-lg shadow-md hover:shadow-lg transition duration-200 flex items-center justify-center gap-2"
+            className="cursor-pointer w-full bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white py-3 text-2xl font-bold rounded-lg shadow-md hover:shadow-lg transition duration-200 flex items-center justify-center gap-2"
           >
             <span>⚡</span>
             <span>Explore Live Demo as Admin (1-Click)</span>
