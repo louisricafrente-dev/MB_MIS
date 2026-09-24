@@ -26,6 +26,7 @@ const STORAGE_KEYS = {
   CONTRIBUTIONS: "mb_mis_demo_contributions",
   SCHEDULES: "mb_mis_demo_schedules",
   USERS: "mb_mis_demo_users",
+  INVITATIONS: "mb_mis_demo_invitations",
   LOGS: "mb_mis_demo_logs",
 };
 
@@ -57,6 +58,7 @@ export function resetDemoData() {
   localStorage.removeItem(STORAGE_KEYS.CONTRIBUTIONS);
   localStorage.removeItem(STORAGE_KEYS.SCHEDULES);
   localStorage.removeItem(STORAGE_KEYS.USERS);
+  localStorage.removeItem(STORAGE_KEYS.INVITATIONS);
   localStorage.removeItem(STORAGE_KEYS.LOGS);
   window.location.reload();
 }
@@ -110,12 +112,91 @@ export function resolveMockRequest(url, method = "GET", data = null, params = {}
     if (m === "POST") {
       const { route_key, is_enabled } = data || {};
       const flags = getStored(STORAGE_KEYS.FLAGS, { ...demoRouterFlags });
+      const oldState = { route_key, is_enabled: flags[route_key] ?? false };
       if (route_key) {
         flags[route_key] = is_enabled;
         setStored(STORAGE_KEYS.FLAGS, flags);
+
+        // Append to logs
+        const logs = getStored(STORAGE_KEYS.LOGS, demoLogs);
+        const currentUser = getStored(STORAGE_KEYS.USER, demoUser);
+        logs.unshift({
+          id: Date.now(),
+          user_name: currentUser.full_name || "Louis Ricafrente",
+          role: currentUser.role || "Admin",
+          user: {
+            id: currentUser.id || 1,
+            fname: currentUser.fname || "Louis",
+            lname: currentUser.lname || "Ricafrente",
+            first_name: currentUser.fname || "Louis",
+            last_name: currentUser.lname || "Ricafrente",
+            role: currentUser.role || "Admin",
+            roleId: currentUser.roleId || 1,
+            username: currentUser.username || "admin",
+          },
+          action: "update",
+          model: "RouterFlag",
+          description: `Toggled router flag '${route_key}' to ${is_enabled ? "enabled" : "disabled"}`,
+          details: `Toggled router flag '${route_key}' to ${is_enabled ? "enabled" : "disabled"}`,
+          created_at: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          beforeState: JSON.stringify(oldState),
+          afterState: JSON.stringify({ route_key, is_enabled }),
+        });
+        setStored(STORAGE_KEYS.LOGS, logs);
       }
-      return { status: 200, data: { message: "Flag updated", flags } };
+      return {
+        status: 200,
+        data: {
+          message: `Flag '${route_key}' updated`,
+          flag: { route_key, is_enabled },
+          flags,
+        },
+      };
     }
+  }
+
+  if (cleanUrl === "/auth/router-flags/maintenance") {
+    const { enable } = data || {};
+    const flags = getStored(STORAGE_KEYS.FLAGS, { ...demoRouterFlags });
+    const oldMaintenance = flags.maintenance ?? false;
+    flags.maintenance = !!enable;
+    setStored(STORAGE_KEYS.FLAGS, flags);
+
+    // Append to logs
+    const logs = getStored(STORAGE_KEYS.LOGS, demoLogs);
+    const currentUser = getStored(STORAGE_KEYS.USER, demoUser);
+    logs.unshift({
+      id: Date.now(),
+      user_name: currentUser.full_name || "Louis Ricafrente",
+      role: currentUser.role || "Admin",
+      user: {
+        id: currentUser.id || 1,
+        fname: currentUser.fname || "Louis",
+        lname: currentUser.lname || "Ricafrente",
+        first_name: currentUser.fname || "Louis",
+        last_name: currentUser.lname || "Ricafrente",
+        role: currentUser.role || "Admin",
+        roleId: currentUser.roleId || 1,
+        username: currentUser.username || "admin",
+      },
+      action: "update",
+      model: "RouterFlag",
+      description: `Maintenance mode ${enable ? "enabled" : "disabled"}`,
+      details: `Maintenance mode ${enable ? "enabled" : "disabled"}`,
+      created_at: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      beforeState: JSON.stringify({ maintenance: oldMaintenance }),
+      afterState: JSON.stringify({ maintenance: !!enable }),
+    });
+    setStored(STORAGE_KEYS.LOGS, logs);
+
+    return {
+      status: 200,
+      data: {
+        message: `Maintenance mode ${enable ? "enabled" : "disabled"} successfully.`,
+      },
+    };
   }
 
   // 2. ADMIN FLAGS
@@ -304,14 +385,196 @@ export function resolveMockRequest(url, method = "GET", data = null, params = {}
     return { status: 200, data: users };
   }
 
+  // Single user by ID or fullName: /auth/user/:fullName
+  if (cleanUrl.startsWith("/auth/user/")) {
+    const rawTarget = cleanUrl.replace("/auth/user/", "");
+    const decodedTarget = decodeURIComponent(rawTarget).trim().toLowerCase();
+    const users = getStored(STORAGE_KEYS.USERS, demoUsersList);
+    const found = users.filter((u) => {
+      const uFullName = `${u.fname || ""} ${u.lname || ""}`.trim().toLowerCase();
+      const uId = String(u.id);
+      const uUsername = (u.username || "").toLowerCase();
+      return (
+        uFullName === decodedTarget ||
+        uId === decodedTarget ||
+        uUsername === decodedTarget ||
+        uFullName.includes(decodedTarget)
+      );
+    });
+
+    if (found.length > 0) {
+      return { status: 200, data: found };
+    }
+    // Fallback: return default user in array
+    return { status: 200, data: [users[0] || demoUser] };
+  }
+
   if (cleanUrl === "/auth/invitations") {
-    return { status: 200, data: demoInvitations };
+    const invitations = getStored(STORAGE_KEYS.INVITATIONS, demoInvitations);
+    return { status: 200, data: invitations };
+  }
+
+  // Create/Send Invitation: POST /auth/send-invitation
+  if (cleanUrl === "/auth/send-invitation" && m === "POST") {
+    const { first_name, last_name, email, contact_number, role } = data || {};
+    const roleIdMap = {
+      Admin: 1,
+      "Content Manager": 2,
+      Viewer: 3,
+      Reviewer: 4,
+    };
+    const roleId = roleIdMap[role] || 3;
+    const invitations = getStored(STORAGE_KEYS.INVITATIONS, demoInvitations);
+    const newInvite = {
+      id: Date.now(),
+      first_name: first_name || "New",
+      last_name: last_name || "User",
+      email: email || "user@museobulawan.ph",
+      contact_number: contact_number || "0917-000-0000",
+      role: role || "Viewer",
+      roleId,
+      status: "Pending",
+      isUsed: false,
+      created_at: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 86400000 * 7).toISOString(),
+      expiresAt: new Date(Date.now() + 86400000 * 7).toISOString(),
+    };
+    invitations.unshift(newInvite);
+    setStored(STORAGE_KEYS.INVITATIONS, invitations);
+
+    // Also add to users list
+    const users = getStored(STORAGE_KEYS.USERS, demoUsersList);
+    const newUser = {
+      id: Date.now(),
+      fname: first_name || "New",
+      lname: last_name || "User",
+      first_name: first_name || "New",
+      last_name: last_name || "User",
+      full_name: `${first_name || "New"} ${last_name || "User"}`.trim(),
+      username: (first_name || "user").toLowerCase() + "_" + Date.now().toString().slice(-4),
+      email: email || "user@museobulawan.ph",
+      role: role || "Viewer",
+      roleId,
+      position: `${role || "Staff"} Member`,
+      phone: contact_number || "0917-000-0000",
+      contact: contact_number || "0917-000-0000",
+      contact_number: contact_number || "0917-000-0000",
+      created_at: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      sessions: [
+        {
+          id: Date.now() + 1,
+          loginAt: new Date().toISOString(),
+          logoutAt: null,
+          isOnline: true,
+          ipAddress: "192.168.1.150",
+          browser: "Chrome on Windows",
+        },
+      ],
+    };
+    users.unshift(newUser);
+    setStored(STORAGE_KEYS.USERS, users);
+
+    // Add activity log
+    const logs = getStored(STORAGE_KEYS.LOGS, demoLogs);
+    const currentUser = getStored(STORAGE_KEYS.USER, demoUser);
+    logs.unshift({
+      id: Date.now(),
+      user_name: currentUser.full_name || "Louis Ricafrente",
+      role: currentUser.role || "Admin",
+      user: {
+        id: currentUser.id || 1,
+        fname: currentUser.fname || "Louis",
+        lname: currentUser.lname || "Ricafrente",
+        first_name: currentUser.fname || "Louis",
+        last_name: currentUser.lname || "Ricafrente",
+        role: currentUser.role || "Admin",
+        roleId: currentUser.roleId || 1,
+        username: currentUser.username || "admin",
+      },
+      action: "create",
+      model: "UserInvitation",
+      description: `Invited new user: ${first_name} ${last_name} (${email}) as ${role}`,
+      details: `Invited new user: ${first_name} ${last_name} (${email}) as ${role}`,
+      created_at: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      beforeState: JSON.stringify({}),
+      afterState: JSON.stringify(newInvite),
+    });
+    setStored(STORAGE_KEYS.LOGS, logs);
+
+    return {
+      status: 201,
+      data: {
+        message: "Invitation sent successfully.",
+        invite: newInvite,
+      },
+    };
+  }
+
+  // Resend invitation: POST /auth/invitation/:id/resend
+  if (cleanUrl.startsWith("/auth/invitation/") && cleanUrl.endsWith("/resend")) {
+    const segments = cleanUrl.split("/");
+    const id = segments[segments.length - 2];
+    const invitations = getStored(STORAGE_KEYS.INVITATIONS, demoInvitations);
+    const invite = invitations.find((i) => String(i.id) === String(id));
+    if (invite) {
+      invite.expires_at = new Date(Date.now() + 86400000 * 7).toISOString();
+      invite.expiresAt = invite.expires_at;
+      setStored(STORAGE_KEYS.INVITATIONS, invitations);
+    }
+    return {
+      status: 200,
+      data: {
+        message: "Invitation resent successfully!",
+      },
+    };
+  }
+
+  // Revoke invitation: DELETE /auth/invitation/:id/revoke
+  if (cleanUrl.startsWith("/auth/invitation/") && cleanUrl.endsWith("/revoke")) {
+    const segments = cleanUrl.split("/");
+    const id = segments[segments.length - 2];
+    let invitations = getStored(STORAGE_KEYS.INVITATIONS, demoInvitations);
+    invitations = invitations.filter((i) => String(i.id) !== String(id));
+    setStored(STORAGE_KEYS.INVITATIONS, invitations);
+
+    return {
+      status: 200,
+      data: {
+        message: "Invitation revoked successfully!",
+      },
+    };
   }
 
   // 13. LOGS
-  if (cleanUrl.startsWith("/auth/logs")) {
+  // Supports single log detail: /auth/logs/:id
+  if (cleanUrl.startsWith("/auth/logs/") && cleanUrl !== "/auth/logs") {
+    const logId = cleanUrl.replace("/auth/logs/", "");
     const logs = getStored(STORAGE_KEYS.LOGS, demoLogs);
-    return { status: 200, data: { logs, count: logs.length } };
+    const found = logs.find((l) => String(l.id) === String(logId)) || logs[0];
+    return { status: 200, data: found };
+  }
+
+  // List of logs: /auth/logs with optional filter ?model= or query params
+  if (cleanUrl === "/auth/logs" || cleanUrl.startsWith("/auth/logs")) {
+    let logs = getStored(STORAGE_KEYS.LOGS, demoLogs);
+    const queryModel = params?.model || (url.includes("model=") ? url.split("model=")[1].split("&")[0] : null);
+    const queryAction = params?.action;
+    const queryRole = params?.role;
+
+    if (queryModel && queryModel !== "*") {
+      logs = logs.filter((l) => (l.model || "").toLowerCase() === queryModel.toLowerCase());
+    }
+    if (queryAction && queryAction !== "*") {
+      logs = logs.filter((l) => (l.action || "").toLowerCase() === queryAction.toLowerCase());
+    }
+    if (queryRole && queryRole !== "*") {
+      logs = logs.filter((l) => String(l.user?.roleId || l.roleId) === String(queryRole));
+    }
+
+    return { status: 200, data: logs };
   }
 
   // 14. ANALYTICS & WEBSITE TRAFFIC
