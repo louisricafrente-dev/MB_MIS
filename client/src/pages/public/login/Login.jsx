@@ -26,10 +26,10 @@ const redirectParam = searchParams.get("redirect");
   }, [forcedLogoutReason]);
 
 useEffect(() => {
-  if (user && socketReady) {
+  if (user) {
     navigate(redirectParam || "/admin/dashboard", { replace: true });
   }
-}, [user, socketReady, redirectParam]);
+}, [user, redirectParam]);
 
   const handleChange = (e) => {
     setCredentials({
@@ -161,10 +161,38 @@ useEffect(() => {
           <button
             type="submit"
             disabled={isLoading}
-            className="cursor-pointer w-full bg-black hover:bg-gray-500 text-white py-2 text-2xl rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="cursor-pointer w-full bg-black hover:bg-gray-800 text-white py-2 text-xl font-semibold rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? "Logging in..." : "Login"}
           </button>
+
+          <div className="relative my-4 flex items-center justify-center">
+            <div className="border-t border-gray-300 w-full" />
+            <span className="bg-white px-3 text-xs uppercase text-gray-500 font-semibold tracking-wider absolute">
+              Portfolio Live Demo
+            </span>
+          </div>
+
+          <button
+            type="button"
+            disabled={isLoading}
+            onClick={async () => {
+              setIsLoading(true);
+              const demoCreds = { username: "admin", password: "password123" };
+              setCredentials(demoCreds);
+              await login(demoCreds);
+              navigate(redirectParam || "/admin/dashboard", { replace: true });
+              setIsLoading(false);
+            }}
+            className="cursor-pointer w-full bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white py-3 text-lg font-bold rounded-lg shadow-md hover:shadow-lg transition duration-200 flex items-center justify-center gap-2"
+          >
+            <span>⚡</span>
+            <span>Explore Live Demo as Admin (1-Click)</span>
+          </button>
+
+          <p className="mt-3 text-xs text-center text-gray-500">
+            Live Demo Mode enabled • Admin & visitor features unlocked
+          </p>
         </form>
       </div>
 

@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
     ],
-    base: env.VITE_APP_BASE_URL || '/',
+    base: '/',
     resolve: {
       alias: {
         '@': path.resolve(__dirname, 'src'),

@@ -90,8 +90,10 @@ function createProxiedSocketClient(serverUrl) {
     },
 
     onReady(cb) {
-      if (isLeader && this.socket?.connected) cb();
-      this._readyCallbacks.add(cb);
+      if (typeof cb === "function") {
+        setTimeout(cb, 0);
+        this._readyCallbacks.add(cb);
+      }
     },
     offReady(cb) {
       this._readyCallbacks.delete(cb);
